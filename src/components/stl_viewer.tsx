@@ -99,6 +99,9 @@ export class STLViewer extends Component<STLViewerProps> {
 			color: 0xdddddd, // TODO: make this transparent
 			roughness: 1,
 			metalness: 0,
+			transparent: true,
+			opacity: 0.5,
+			side: THREE.DoubleSide,
 		});
 		const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 		plane.rotation.x = -Math.PI / 2; // rotate to lie flat

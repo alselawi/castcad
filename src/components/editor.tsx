@@ -1,6 +1,6 @@
-import React from "react";
+import React, { createRef } from "react";
 import logo from "../svgs/logo.svg";
-import { DefaultButton, PrimaryButton } from "@fluentui/react";
+import { DefaultButton, Icon, PrimaryButton } from "@fluentui/react";
 import { gState } from "../state";
 import { STLViewer } from "./stl_viewer";
 import { observer } from "mobx-react";
@@ -12,6 +12,8 @@ import solidifySVG from "../svgs/solidify.svg";
 
 @observer
 export class Editor extends React.Component {
+	viewer = createRef<STLViewer>();
+
 	render(): React.ReactNode {
 		return (
 			<div id="editor">
@@ -46,6 +48,13 @@ export class Editor extends React.Component {
 					</div>
 				</div>
 
+				{gState.decodedSTL ? (
+					<STLViewer
+						ref={this.viewer}
+						decodedSTL={gState.decodedSTL}
+					></STLViewer>
+				) : null}
+
 				<div className="tools">
 					<ToolButton
 						label="Align"
@@ -66,9 +75,116 @@ export class Editor extends React.Component {
 					></ToolButton>
 				</div>
 
-				{gState.decodedSTL ? (
-					<STLViewer decodedSTL={gState.decodedSTL}></STLViewer>
-				) : null}
+				{this.viewer.current && (
+					<div className="controls">
+						<DefaultButton
+							iconProps={{ iconName: "rotate" }}
+							text="Rotate"
+							primary={
+								this.viewer.current.transformControls?.getMode() === "rotate" &&
+								this.viewer.current.transformControlsGizmo.parent ===
+									this.viewer.current.scene
+							}
+							onClick={() => {
+								if (
+									this.viewer.current.transformControls?.getMode() !==
+										"rotate" ||
+									this.viewer.current.transformControlsGizmo.parent !==
+										this.viewer.current.scene
+								) {
+									gState.setTransformControlsToRotate(this.viewer.current);
+									gState.showTransformControls(this.viewer.current);
+								} else {
+									gState.hideTransformControls(this.viewer.current);
+								}
+								this.setState({});
+							}}
+						/>
+						<DefaultButton
+							iconProps={{ iconName: "SIPMove" }}
+							text="Translate"
+							primary={
+								this.viewer.current.transformControls?.getMode() ===
+									"translate" &&
+								this.viewer.current.transformControlsGizmo.parent ===
+									this.viewer.current.scene
+							}
+							onClick={() => {
+								if (
+									this.viewer.current.transformControls?.getMode() !==
+										"translate" ||
+									this.viewer.current.transformControlsGizmo.parent !==
+										this.viewer.current.scene
+								) {
+									gState.setTransformControlsToTranslate(this.viewer.current);
+									gState.showTransformControls(this.viewer.current);
+								} else {
+									gState.hideTransformControls(this.viewer.current);
+								}
+								this.setState({});
+							}}
+						/>
+						<DefaultButton
+							iconProps={{ iconName: "video" }}
+							text="Reset Camera"
+							onClick={() => {
+								this.viewer.current.fitCameraToObject();
+							}}
+						/>
+					</div>
+				)}
+
+				<div className="camera-table">
+					<table>
+						<tbody>
+							<tr>
+								<td></td>
+								<td>
+									<DefaultButton
+										iconProps={{ iconName: "CaretSolidUp" }}
+										onClick={() => {
+											this.viewer.current.camera.position.set(0, 250, 0);
+										}}
+									/>
+								</td>
+								<td></td>
+							</tr>
+							<tr>
+								<td>
+									<DefaultButton
+										iconProps={{ iconName: "CaretSolidLeft" }}
+										onClick={() => {
+											this.viewer.current.camera.position.set(250, 0, 0);
+										}}
+									/>
+								</td>
+								<td className="middle">
+									<Icon iconName="video"></Icon>
+								</td>
+								<td>
+									<DefaultButton
+										iconProps={{ iconName: "CaretSolidRight" }}
+										onClick={() => {
+											this.viewer.current.camera.position.set(-250, 0, 0);
+										}}
+									/>
+								</td>
+							</tr>
+							<tr>
+								<td></td>
+								<td>
+									<DefaultButton
+										iconProps={{ iconName: "CaretSolidDown" }}
+										onClick={() => {
+											this.viewer.current.camera.position.set(0, -250, 0);
+										}}
+									/>
+								</td>
+								<td></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
 			</div>
 		);
 	}

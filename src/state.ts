@@ -1,13 +1,12 @@
 import { action, makeAutoObservable } from "mobx";
 import { decodeSTL, type DecodedSTL } from "./services/stl_to_mesh";
+import type { STLViewer } from "./components/stl_viewer";
 
 class AppState {
 	constructor() {
 		makeAutoObservable(this);
 	}
 
-
-	
 	/**
 	 * Loading mesh
 	 * ============================
@@ -25,8 +24,47 @@ class AppState {
 			this.decodingError = err as string;
 		}
 	}
+	
 
+	@action
+	setTransformControlsToRotate(viewer: STLViewer) {
+		if (!viewer.transformControls) {
+			return;
+		}
+		viewer.transformControls.setMode("rotate");
+	}
 
+	@action
+	setTransformControlsToTranslate(viewer: STLViewer) {
+		if (!viewer.transformControls) {
+			return;
+		}
+		viewer.transformControls.setMode("translate");
+	}
+
+	@action
+	showTransformControls(viewer: STLViewer) {
+		if (
+			!viewer.scene ||
+			!viewer.transformControlsGizmo ||
+			!viewer.transformControls
+		) {
+			return;
+		}
+		viewer.scene.add(viewer.transformControlsGizmo);
+	}
+
+	@action
+	hideTransformControls(viewer: STLViewer) {
+		if (
+			!viewer.scene ||
+			!viewer.transformControlsGizmo ||
+			!viewer.transformControls
+		) {
+			return;
+		}
+		viewer.scene.remove(viewer.transformControlsGizmo);
+	}
 
 	/**
 	 * Dialog management

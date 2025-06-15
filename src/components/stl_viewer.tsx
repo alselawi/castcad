@@ -1,9 +1,10 @@
 import { Component, createRef } from "react";
 import { Stack } from "@fluentui/react";
 import * as THREE from "three";
-import { OrbitControls } from "../services/orbit_controls";
 import { observer } from "mobx-react";
 import type { DecodedSTL } from "../services/stl_to_mesh";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 type STLViewerProps = {
 	decodedSTL: DecodedSTL;
@@ -11,12 +12,14 @@ type STLViewerProps = {
 
 @observer
 export class STLViewer extends Component<STLViewerProps> {
-	private mountRef = createRef<HTMLDivElement>();
-	private renderer?: THREE.WebGLRenderer;
-	private scene?: THREE.Scene;
-	private camera?: THREE.PerspectiveCamera;
-	private mesh?: THREE.Mesh;
-	private controls?: OrbitControls;
+	mountRef = createRef<HTMLDivElement>();
+	renderer?: THREE.WebGLRenderer;
+	mesh?: THREE.Mesh;
+	controls?: OrbitControls;
+	camera?: THREE.PerspectiveCamera;
+	scene?: THREE.Scene;
+	transformControlsGizmo?: THREE.Object3D;
+	transformControls?: TransformControls;
 
 	componentDidMount() {
 		this.initThree();
@@ -56,7 +59,7 @@ export class STLViewer extends Component<STLViewerProps> {
 
 		// Camera
 		this.camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-		this.camera.position.set(0, 0, 100);
+		this.camera.position.set(0, 0, 0);
 
 		// Controls
 		this.controls = new OrbitControls(this.camera!, this.renderer!.domElement);
@@ -68,14 +71,55 @@ export class STLViewer extends Component<STLViewerProps> {
 		this.controls.target.set(0, 0, 0); // initial look-at target
 		this.controls.update();
 
+		// Transform Controls
+		this.transformControls = new TransformControls(
+			this.camera!,
+			this.renderer!.domElement
+		);
+		this.transformControls.addEventListener("dragging-changed", (event) => {
+			this.controls!.enabled = !event.value; // disable OrbitControls when using transform
+		});
+
+		this.transformControlsGizmo = this.transformControls.getHelper();
+
 		// Lights
 		const hemisphericLight = new THREE.HemisphereLight(0xffffff, 0x444444, 3);
 		hemisphericLight.position.set(0, 200, 0);
 		this.scene.add(hemisphericLight);
 
+		// Directional Light
 		const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
 		directionalLight.position.set(0, 0, 100).normalize();
 		this.scene.add(directionalLight);
+
+		// Ground Plane
+		const planeSize = 1000;
+		const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+		const planeMaterial = new THREE.MeshStandardMaterial({
+			color: 0xdddddd, // TODO: make this transparent
+			roughness: 1,
+			metalness: 0,
+		});
+		const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+		plane.rotation.x = -Math.PI / 2; // rotate to lie flat
+		plane.position.y = -10; // move slightly down if needed
+		plane.receiveShadow = true;
+		this.scene.add(plane);
+
+		// Grid Helper
+		const gridSize = 1000;
+		const gridDivisions = 100;
+		const gridColorCenterLine = 0x444444;
+		const gridColor = 0xcccccc;
+
+		const gridHelper = new THREE.GridHelper(
+			gridSize,
+			gridDivisions,
+			gridColorCenterLine,
+			gridColor
+		);
+		gridHelper.position.y = -10; // adjust height if needed
+		this.scene?.add(gridHelper);
 
 		// Start animation loop
 		this.animate();
@@ -88,7 +132,7 @@ export class STLViewer extends Component<STLViewerProps> {
 	};
 
 	loadSTL(decodedSTL: DecodedSTL) {
-		const {geometry, mesh} = decodedSTL;
+		const { geometry, mesh } = decodedSTL;
 		this.mesh = mesh;
 
 		// Center geometry
@@ -100,17 +144,18 @@ export class STLViewer extends Component<STLViewerProps> {
 		}
 
 		this.scene?.add(this.mesh);
+		this.transformControls.attach(this.mesh);
+		this.transformControls.showX = true;
+		this.transformControls.showY = true;
+		this.transformControls.setSize(1);
 
 		// Adjust camera position to fit model
-		this.fitCameraToObject(this.camera!, this.mesh, 1.2);
+		this.fitCameraToObject();
 	}
 
-	fitCameraToObject(
-		camera: THREE.PerspectiveCamera,
-		object: THREE.Object3D,
-		offset = 1.25
-	) {
-		const boundingBox = new THREE.Box3().setFromObject(object);
+	fitCameraToObject(x: number = 150, y: number = 100, z: number = 100) {
+		const offset = 1.25;
+		const boundingBox = new THREE.Box3().setFromObject(this.mesh);
 
 		const center = boundingBox.getCenter(new THREE.Vector3());
 		const size = boundingBox.getSize(new THREE.Vector3());
@@ -118,15 +163,16 @@ export class STLViewer extends Component<STLViewerProps> {
 		// Figure out how to position the camera to fit the object
 		const maxSize = Math.max(size.x, size.y, size.z);
 		const fitHeightDistance =
-			maxSize / (2 * Math.atan((Math.PI * camera.fov) / 360));
-		const fitWidthDistance = fitHeightDistance / camera.aspect;
+			maxSize / (2 * Math.atan((Math.PI * this.camera.fov) / 360));
+		const fitWidthDistance = fitHeightDistance / this.camera.aspect;
 		const distance = offset * Math.max(fitHeightDistance, fitWidthDistance);
 
-		camera.position.copy(center);
-		camera.position.z += distance;
-		camera.lookAt(center);
+		this.camera.position.copy(center);
+		this.camera.position.z += distance;
+		this.camera.lookAt(center);
+		this.camera.position.set(x, y, z);
 
-		camera.updateProjectionMatrix();
+		this.camera.updateProjectionMatrix();
 	}
 
 	clearScene() {
@@ -160,7 +206,6 @@ export class STLViewer extends Component<STLViewerProps> {
 	}
 
 	render() {
-
 		return (
 			<Stack tokens={{ childrenGap: 8 }}>
 				<div

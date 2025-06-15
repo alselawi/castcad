@@ -88,13 +88,52 @@ html {
 
 			&:hover {
 				&:not(:disabled) {
-                    box-shadow: 1px 1px 1px 1px #8a8886;
+					box-shadow: 1px 1px 1px 1px #8a8886;
 				}
 			}
 
 			&:disabled {
 				opacity: 0.5;
 			}
+		}
+	}
+
+	.controls {
+		position: fixed;
+		top: 75px;
+		right: 9px;
+		display: flex;
+		flex-direction: column;
+		align-content: center;
+		flex-wrap: wrap;
+		height: calc(100vh - 81px);
+		justify-content: flex-end;
+		align-items: stretch;
+		button {
+			margin-top: 5px;
+			justify-content: flex-start;
+			i {
+				padding-right: 8px;
+				border-right: 1px solid #e3e3e3;
+			}
+		}
+	}
+
+	.camera-table {
+		position: fixed;
+		bottom: 9px;
+		left: 9px;
+		button {
+			border-radius: 50%;
+			height: 30px;
+			width: 30px;
+			display: inline-block;
+			min-width: auto;
+			border: none;
+		}
+		.middle i {
+			font-size: 26px;
+			padding-top: 10px;
 		}
 	}
 }

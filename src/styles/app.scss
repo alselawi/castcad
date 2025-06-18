@@ -25,6 +25,9 @@ html {
 }
 
 #editor {
+
+	user-select: none !important;
+
 	.editor-top {
 		display: flex;
 		justify-content: space-between;

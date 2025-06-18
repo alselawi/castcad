@@ -5,9 +5,11 @@ import { observer } from "mobx-react";
 import type { DecodedSTL } from "../services/stl_to_mesh";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { observable } from "mobx";
 
 type STLViewerProps = {
 	decodedSTL: DecodedSTL;
+	selecting: boolean;
 };
 
 @observer
@@ -20,6 +22,11 @@ export class STLViewer extends Component<STLViewerProps> {
 	scene?: THREE.Scene;
 	transformControlsGizmo?: THREE.Object3D;
 	transformControls?: TransformControls;
+	raycaster = new THREE.Raycaster();
+	mouse = new THREE.Vector2();
+	originalColors?: Float32Array;
+	isDragging = false;
+	selectedFaceIndices = observable(new Set<number>());
 
 	componentDidMount() {
 		this.initThree();
@@ -96,7 +103,7 @@ export class STLViewer extends Component<STLViewerProps> {
 		const planeSize = 1000;
 		const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
 		const planeMaterial = new THREE.MeshStandardMaterial({
-			color: 0xdddddd, // TODO: make this transparent
+			color: 0xdddddd,
 			roughness: 1,
 			metalness: 0,
 			transparent: true,
@@ -124,9 +131,157 @@ export class STLViewer extends Component<STLViewerProps> {
 		gridHelper.position.y = -10; // adjust height if needed
 		this.scene?.add(gridHelper);
 
+		// Mouse listener (for selection)
+		const dom = this.renderer!.domElement;
+		dom.addEventListener("mousedown", this.onMouseDown);
+		dom.addEventListener("mousemove", this.onMouseMove);
+		dom.addEventListener("mouseup", this.onMouseUp);
+
 		// Start animation loop
 		this.animate();
 	}
+
+	onMouseDown = (event: MouseEvent) => {
+		if (!this.props.selecting) return;
+		const rect = this.renderer!.domElement.getBoundingClientRect();
+		this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+		this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+		this.raycaster.setFromCamera(this.mouse, this.camera!);
+		if (!this.mesh) return;
+
+		const intersects = this.raycaster.intersectObject(this.mesh, false);
+		if (intersects.length > 0) {
+			this.isDragging = true;
+			if (this.controls) this.controls.enabled = false;
+		}
+	};
+	onMouseUp = () => {
+		if (!this.props.selecting) return;
+		this.isDragging = false;
+		if (this.controls) this.controls.enabled = true;
+	};
+
+	onMouseMove = (event: MouseEvent) => {
+		if (!this.props.selecting) return;
+		const rect = this.renderer!.domElement.getBoundingClientRect();
+		this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+		this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+		if (!this.mesh || !this.camera || !this.isDragging) return;
+
+		const geometry = this.mesh.geometry as THREE.BufferGeometry;
+		const position = geometry.attributes.position;
+		const camera = this.camera;
+
+		const brushRadiusPixels = 10;
+		const mouseScreenX = event.clientX;
+		const mouseScreenY = event.clientY;
+
+		const vector = new THREE.Vector3();
+		const worldPosition = new THREE.Vector3();
+
+		for (let faceIndex = 0; faceIndex < position.count / 3; faceIndex++) {
+			// Get the centroid of the triangle
+			const a = new THREE.Vector3().fromBufferAttribute(
+				position,
+				faceIndex * 3 + 0
+			);
+			const b = new THREE.Vector3().fromBufferAttribute(
+				position,
+				faceIndex * 3 + 1
+			);
+			const c = new THREE.Vector3().fromBufferAttribute(
+				position,
+				faceIndex * 3 + 2
+			);
+
+			const centroid = new THREE.Vector3()
+				.addVectors(a, b)
+				.add(c)
+				.multiplyScalar(1 / 3);
+
+			// Transform centroid to world and then to screen space
+			this.mesh.localToWorld(worldPosition.copy(centroid));
+			vector.copy(worldPosition).project(camera);
+
+			// Convert normalized device coordinates to screen coordinates
+			const screenX = ((vector.x + 1) / 2) * rect.width + rect.left;
+			const screenY = ((-vector.y + 1) / 2) * rect.height + rect.top;
+
+			const dx = screenX - mouseScreenX;
+			const dy = screenY - mouseScreenY;
+			const distSq = dx * dx + dy * dy;
+
+			if (distSq <= brushRadiusPixels * brushRadiusPixels) {
+				if (!this.selectedFaceIndices.has(faceIndex)) {
+					this.selectedFaceIndices.add(faceIndex);
+				}
+			}
+		}
+
+		this.highlightSelectedFaces();
+		this.renderer?.render(this.scene!, this.camera!);
+	};
+
+	highlightSelectedFaces() {
+		if (!this.mesh) return;
+		const geometry = this.mesh.geometry as THREE.BufferGeometry;
+
+		// Init vertex colors if not done yet
+		if (!geometry.getAttribute("color")) {
+			const count = geometry.attributes.position.count;
+			const colorAttr = new THREE.Float32BufferAttribute(count * 3, 3);
+			colorAttr.setUsage(THREE.DynamicDrawUsage);
+			geometry.setAttribute("color", colorAttr);
+
+			for (let i = 0; i < count; i++) {
+				colorAttr.setXYZ(i, 1, 1, 1); // default white
+			}
+		}
+
+		const colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute;
+
+		// Paint all selected faces red
+		for (const faceIndex of this.selectedFaceIndices) {
+			for (let i = 0; i < 3; i++) {
+				const vertexIndex = faceIndex * 3 + i;
+				colorAttr.setXYZ(vertexIndex, 1, 0, 0); // red
+			}
+		}
+		colorAttr.needsUpdate = true;
+
+		if (this.mesh.material instanceof THREE.Material)
+			this.mesh.material.vertexColors = true;
+	}
+
+	restoreColors() {
+		if (!this.originalColors || !this.mesh) return;
+		const geometry = this.mesh.geometry as THREE.BufferGeometry;
+		const colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute;
+		colorAttr.copyArray(this.originalColors);
+		colorAttr.needsUpdate = true;
+	}
+
+	clearSelection = () => {
+		if (!this.mesh) return;
+
+		const geometry = this.mesh.geometry;
+		const colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute;
+
+		if (!colorAttr) return;
+
+		// Clear selected indices
+		this.selectedFaceIndices.clear();
+
+		// Reset all colors to default light blue (0x4ab0ff = RGB: 0.29, 0.69, 1.0)
+		for (let i = 0; i < colorAttr.count; i++) {
+			colorAttr.setXYZ(i, 0.29, 0.69, 1.0);
+		}
+		colorAttr.needsUpdate = true;
+
+		this.renderer?.render(this.scene!, this.camera!);
+	};
 
 	animate = () => {
 		requestAnimationFrame(this.animate);
@@ -180,6 +335,8 @@ export class STLViewer extends Component<STLViewerProps> {
 
 	clearScene() {
 		if (this.mesh && this.scene) {
+			this.originalColors = undefined;
+			this.selectedFaceIndices.clear();
 			this.scene.remove(this.mesh);
 			this.mesh.geometry.dispose();
 			if (Array.isArray(this.mesh.material)) {
@@ -220,9 +377,36 @@ export class STLViewer extends Component<STLViewerProps> {
 						border: "1px solid #ddd",
 						borderRadius: 4,
 						backgroundColor: "#fff",
+						cursor: this.props.selecting
+							? `url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"> <circle cx="16" cy="16" r="8" stroke="red" stroke-width="2" fill="transparent"/> </svg>') 16 16, auto`
+							: undefined,
+						userSelect: "auto",
 					}}
-				/>
+				></div>
 			</Stack>
 		);
 	}
 }
+
+/*** TODO:
+
+
+Responsive Renderer Size on Window Resize
+You're using document.body.clientWidth, but this won't respond dynamically if the window resizes. Add:
+
+window.addEventListener("resize", this.handleResize);
+
+handleResize = () => {
+	if (!this.renderer || !this.camera) return;
+	const width = window.innerWidth;
+	const height = window.innerHeight;
+	this.renderer.setSize(width, height);
+	this.camera.aspect = width / height;
+	this.camera.updateProjectionMatrix();
+};
+
+
+Don’t forget to remove it in componentWillUnmount.
+
+
+ */

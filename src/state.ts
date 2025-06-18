@@ -14,6 +14,15 @@ class AppState {
 
 	decodedSTL: DecodedSTL | null = null;
 	decodingError: string | null = null;
+	selecting = false;
+	@action
+	startSelecting() {
+		this.selecting = true;
+	}
+	@action
+	stopSelecting() {
+		this.selecting = false;
+	}
 
 	@action
 	async decodeFile(file: File) {
@@ -24,7 +33,6 @@ class AppState {
 			this.decodingError = err as string;
 		}
 	}
-	
 
 	@action
 	setTransformControlsToRotate(viewer: STLViewer) {

@@ -17,7 +17,7 @@ export function decodeSTL(file: File): Promise<DecodedSTL> {
 					!contents ||
 					(typeof contents !== "string" && !(contents instanceof ArrayBuffer))
 				) {
-                    reject("Failed to read STL file contents.");
+					reject("Failed to read STL file contents.");
 					return;
 				}
 				const loader = new STLLoader();
@@ -26,15 +26,28 @@ export function decodeSTL(file: File): Promise<DecodedSTL> {
 						? contents
 						: new TextEncoder().encode(contents)
 				);
+
+				const count = geometry.attributes.position.count;
+
+				const color = [0.29, 0.69, 1.0];
+				const colors = new Float32Array(count * 3);
+				for (let i = 0; i < count; i++) {
+					colors[i * 3] = color[0];
+					colors[i * 3 + 1] = color[1];
+					colors[i * 3 + 2] = color[2];
+				}
+				geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
 				// Create mesh with a basic material
 				const material = new THREE.MeshStandardMaterial({
+					vertexColors: true,
 					color: 0x4ab0ff,
 					roughness: 0.5,
 					metalness: 0,
 					flatShading: true,
 				});
 				const mesh = new THREE.Mesh(geometry, material);
-                resolve({ geometry, material, mesh });
+				resolve({ geometry, material, mesh });
 			} catch (err) {
 				reject(err);
 			}

@@ -52,6 +52,7 @@ export class Editor extends React.Component {
 					<STLViewer
 						ref={this.viewer}
 						decodedSTL={gState.decodedSTL}
+						selecting={gState.selecting}
 					></STLViewer>
 				) : null}
 
@@ -77,6 +78,30 @@ export class Editor extends React.Component {
 
 				{this.viewer.current && (
 					<div className="controls">
+						{this.viewer.current.selectedFaceIndices.size > 0 && (
+							<DefaultButton
+								iconProps={{ iconName: "clearSelection" }}
+								text="Deselect all"
+								onClick={this.viewer.current.clearSelection}
+							/>
+						)}
+
+						<DefaultButton
+							iconProps={{ iconName: "filters" }}
+							text="Select"
+							primary={gState.selecting}
+							onClick={() => {
+								if (gState.selecting) {
+									gState.stopSelecting();
+								} else {
+									gState.startSelecting();
+									gState.hideTransformControls(this.viewer.current);
+								}
+
+								this.setState({});
+							}}
+						/>
+
 						<DefaultButton
 							iconProps={{ iconName: "rotate" }}
 							text="Rotate"
@@ -94,8 +119,10 @@ export class Editor extends React.Component {
 								) {
 									gState.setTransformControlsToRotate(this.viewer.current);
 									gState.showTransformControls(this.viewer.current);
+									gState.stopSelecting();
 								} else {
 									gState.hideTransformControls(this.viewer.current);
+									// TODO: bug: this is only hiding the gizmo, but when I drag it, it works
 								}
 								this.setState({});
 							}}
@@ -118,6 +145,7 @@ export class Editor extends React.Component {
 								) {
 									gState.setTransformControlsToTranslate(this.viewer.current);
 									gState.showTransformControls(this.viewer.current);
+									gState.stopSelecting();
 								} else {
 									gState.hideTransformControls(this.viewer.current);
 								}

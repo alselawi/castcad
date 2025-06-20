@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { STLLoader } from "./stl_loader";
+import { STLLoader } from "three/examples/jsm/Addons.js";
 
 export interface DecodedSTL {
 	geometry: THREE.BufferGeometry;

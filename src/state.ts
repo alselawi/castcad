@@ -1,6 +1,11 @@
 import { action, makeAutoObservable } from "mobx";
-import { decodeSTL, type DecodedSTL } from "./services/stl_to_mesh";
+import {
+	decodeSTL,
+	geometryToDecodedSTL,
+	type DecodedSTL,
+} from "./services/stl_to_mesh";
 import type { STLViewer } from "./components/stl_viewer";
+import { cutAwaySelection } from "./services/cut_selection";
 
 class AppState {
 	constructor() {
@@ -22,6 +27,11 @@ class AppState {
 	@action
 	stopSelecting() {
 		this.selecting = false;
+	}
+	@action
+	cutSelection(indices: Set<number>) {
+		const newGeometry = cutAwaySelection(this.decodedSTL.geometry, indices);
+		this.decodedSTL = geometryToDecodedSTL(newGeometry);
 	}
 
 	@action

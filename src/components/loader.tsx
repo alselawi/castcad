@@ -26,7 +26,7 @@ export class Loader extends React.Component {
 				<br />
 				{gState.decodingError && (
 					<MessageBar messageBarType={MessageBarType.error} isMultiline>
-						{gState.decodingError}
+						{JSON.stringify(gState.decodingError)}
 					</MessageBar>
 				)}
 				<p style={{ textAlign: "center", fontStyle: "italic", fontSize: 12 }}>

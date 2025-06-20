@@ -5,11 +5,11 @@ import { observer } from "mobx-react";
 import type { DecodedSTL } from "../services/stl_to_mesh";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { observable } from "mobx";
 
 type STLViewerProps = {
 	decodedSTL: DecodedSTL;
 	selecting: boolean;
+	onSelect: (faceIndices: Set<number>) => void;
 };
 
 @observer
@@ -26,7 +26,7 @@ export class STLViewer extends Component<STLViewerProps> {
 	mouse = new THREE.Vector2();
 	originalColors?: Float32Array;
 	isDragging = false;
-	selectedFaceIndices = observable(new Set<number>());
+	selectedFaceIndices = new Set<number>();
 
 	componentDidMount() {
 		this.initThree();
@@ -222,6 +222,7 @@ export class STLViewer extends Component<STLViewerProps> {
 
 		this.highlightSelectedFaces();
 		this.renderer?.render(this.scene!, this.camera!);
+		this.props.onSelect(this.selectedFaceIndices);
 	};
 
 	highlightSelectedFaces() {
@@ -281,6 +282,7 @@ export class STLViewer extends Component<STLViewerProps> {
 		colorAttr.needsUpdate = true;
 
 		this.renderer?.render(this.scene!, this.camera!);
+		this.props.onSelect(this.selectedFaceIndices);
 	};
 
 	animate = () => {

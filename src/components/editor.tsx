@@ -7,16 +7,27 @@ import { observer } from "mobx-react";
 import { ToolButton } from "./tool_button";
 
 import cutSVG from "../svgs/cut.svg";
-import alignSVG from "../svgs/align.svg";
 import solidifySVG from "../svgs/solidify.svg";
 
 @observer
 export class Editor extends React.Component {
 	viewer = createRef<STLViewer>();
 
+
 	render(): React.ReactNode {
 		return (
 			<div id="editor">
+				{gState.decodedSTL ? (
+					<STLViewer
+						ref={this.viewer}
+						decodedSTL={gState.decodedSTL}
+						selecting={gState.selecting}
+						onSelect={() => {
+							this.setState({});
+						}}
+					></STLViewer>
+				) : null}
+
 				<div className="editor-top">
 					<div className="logo">
 						<svg id="logo" width={50} height={50}>
@@ -48,26 +59,25 @@ export class Editor extends React.Component {
 					</div>
 				</div>
 
-				{gState.decodedSTL ? (
-					<STLViewer
-						ref={this.viewer}
-						decodedSTL={gState.decodedSTL}
-						selecting={gState.selecting}
-					></STLViewer>
-				) : null}
-
 				<div className="tools">
-					<ToolButton
-						label="Align"
-						tooltip="Align the model based on teeth"
-						icon={alignSVG}
-					></ToolButton>
-
-					<ToolButton
-						label="Cut"
-						tooltip="Cut away needless areas"
-						icon={cutSVG}
-					></ToolButton>
+					{
+						(this.viewer.current && this.viewer.current.selectedFaceIndices.size > 0 && <ToolButton
+							label="Cut"
+							tooltip="Cut away needless areas"
+							icon={cutSVG}
+							onClick={() => {
+								const camera = this.viewer.current.camera.clone();
+								gState.cutSelection(this.viewer.current.selectedFaceIndices);
+								setTimeout(() => {
+									this.viewer.current.camera.position.set(
+										camera.position.x,
+										camera.position.y,
+										camera.position.z
+									);
+								}, 150);
+							}}
+						></ToolButton>)
+					}
 
 					<ToolButton
 						label="Solidify"
